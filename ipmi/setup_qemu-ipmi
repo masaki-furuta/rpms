@@ -1,0 +1,5 @@
+#!/bin/bash -x
+
+sudo yum -y install OpenIPMI-lanserv
+sudo yum -y install qemu-kvm-tools
+sudo yum -y install ipmitool
