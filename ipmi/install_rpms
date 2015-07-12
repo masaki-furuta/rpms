@@ -1,0 +1,12 @@
+#!/bin/bash
+
+set -x
+
+INSTALL=""
+
+#for R in *.rpm;do rpm -Uvh --force $(rpm -q $(rpm -qp --qf '%{name}\n' ${R}));done
+for R in *.rpm;do rpm -q $(rpm -qp --qf '%{name}\n' ${R}) && INSTALL="$INSTALL ${R}";done
+
+echo $INSTALL
+
+sudo rpm -Uvh $INSTALL --force
