@@ -3,7 +3,7 @@
 DEV=eth0
 DEV=wlp3s0
 
-sudo pkill -9 -x qemu-kvm
+sudo pkill -9 -x qemu-system-x86_64
 
 sudo ifconfig ${DEV}:1 10.0.2.211
 sudo ifconfig ${DEV}:2 10.0.2.222
@@ -11,3 +11,4 @@ sudo ifconfig ${DEV}:3 10.0.2.233
 uxterm -e sudo ipmi_sim -c /etc/ipmi/lan.conf.1 &
 uxterm -e sudo ipmi_sim -c /etc/ipmi/lan.conf.2 &
 uxterm -e sudo ipmi_sim -c /etc/ipmi/lan.conf.3 &
+vncviewer :0 & vncviewer :1 & vncviewer :2 & 
