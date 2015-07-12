@@ -1,0 +1,11 @@
+#!/bin/bash -x
+
+DEV=eth0
+DEV=wlp3s0
+
+sudo ifconfig ${DEV}:1 10.0.2.211
+sudo ifconfig ${DEV}:2 10.0.2.222
+sudo ifconfig ${DEV}:3 10.0.2.233
+uxterm -e sudo ipmi_sim -c /etc/ipmi/lan.conf.1 &
+uxterm -e sudo ipmi_sim -c /etc/ipmi/lan.conf.2 &
+uxterm -e sudo ipmi_sim -c /etc/ipmi/lan.conf.3 &

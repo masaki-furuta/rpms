@@ -42,13 +42,13 @@ set_working_mc 0x20
 
   # Define a serial VM inteface for channel 15 (the system interface) on
   # port 9002, just available to the local system (localhost).
-  serial 15 0.0.0.0 9002 codec VM ipmb 0x20
+  serial 15 10.0.2.222 9002 codec VM ipmb 0x20
 
   # startcmd is what to execute to start a VM associated with the
   # codec above (localhost 9002).  It also starts a console serial port
   # on port 9003 that is also used as the monitor interface
    #startcmd "/usr/bin/qemu-system-x86_64 --enable-kvm -boot menu=on -hda /home/zchan/Code/F22.img -vnc :1 -net nic,model=e1000,macaddr=52:54:00:12:34:59 -net user,hostfwd=tcp::5555-10.0.2.15:22 -chardev socket,id=ipmi0,host=localhost,port=9002,reconnect=10 -device isa-ipmi,chardev=ipmi0,interface=bt,irq=5 -serial mon:tcp::9003,server,telnet,nowait -chardev socket,id=monitor,path=/tmp/monitor.sock,server,nowait -monitor chardev:monitor -chardev socket,id=serial1,path=/tmp/console.sock,server,nowait -serial chardev:serial1" 
-   startcmd "qemu-system-x86_64 -machine accel=kvm -vnc :0 -boot c -vnc :1 -hda /var/lib/libvirt/images/F22.img -cdrom /var/lib/libvirt/images/Fedora-Server-DVD-x86_64-22.iso -m 2048 -net nic -net tap,ifname=tap0,script=no -chardev socket,id=monitor,path=/tmp/F22.monitor.sock,server,nowait -monitor chardev:monitor -chardev socket,id=serial0,path=/tmp/F22.console.sock,server,nowait -serial chardev:serial0"
+   startcmd "qemu-system-x86_64 -machine accel=kvm -vnc :0 -boot c -vnc :1 -hda /var/lib/libvirt/images/F22.2.img -cdrom /var/lib/libvirt/images/Fedora-Server-DVD-x86_64-22.iso -m 2048 -net nic -net tap,ifname=tap1,script=no -chardev socket,id=monitor,path=/tmp/F22.monitor.sock,server,nowait -monitor chardev:monitor -chardev socket,id=serial0,path=/tmp/F22.console.sock,server,nowait -serial chardev:serial0"
 
   # Start startcmd at startup?  Default is false.
   startnow true
