@@ -12,3 +12,5 @@ uxterm -e sudo ipmi_sim -c /etc/ipmi/lan.conf.1 &
 uxterm -e sudo ipmi_sim -c /etc/ipmi/lan.conf.2 &
 uxterm -e sudo ipmi_sim -c /etc/ipmi/lan.conf.3 &
 vncviewer :0 & vncviewer :1 & vncviewer :2 & 
+sudo netstat -tlnp| grep 9002
+#ipmitool -I lanplus -H 10.0.2.211 -U admin -P password power status
