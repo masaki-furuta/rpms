@@ -57,3 +57,4 @@ Chassis Power is on
 [root@fedora22 ~]# ipmitool -I lanplus -H localhost -U admin power cycle
 Password: 
 Chassis Power Control: Cycle
+
