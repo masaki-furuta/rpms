@@ -2,12 +2,16 @@
 
 [ ${UID} -eq 0 ] || exit 1
 
-for NUM in {1..5};do 
+CL_NAME=rh7-osp-cl
+CL_NAME=rh7.1-pcs
 
-test -f /var/lib/libvirt/images/rh7-osp-cl${NUM}.img || qemu-img create -f qcow2 /var/lib/libvirt/images/rh7-osp-cl${NUM}.img 40G
-
-test -f /etc/ipmi/rh7-osp-cl${NUM}.emu || \
-cat <<EMU > /etc/ipmi/rh7-osp-cl${NUM}.emu
+#for NUM in {1..5};do
+for NUM in {1..3};do
+  
+  test -f /var/lib/libvirt/images/${CL_NAME}${NUM}.img || qemu-img create -f qcow2 /var/lib/libvirt/images/${CL_NAME}${NUM}.img 40G
+  
+  test -f /etc/ipmi/${CL_NAME}${NUM}.emu || \
+cat <<EMU > /etc/ipmi/${CL_NAME}${NUM}.emu
 # This is an example simulation setup for ipmi_sim.  It creates a single
 # management controller as a BMC.  That will have the standard watchdog
 # sensor and we add a temperature sensor.
@@ -40,15 +44,15 @@ sensor_set_event_support 0x20 0 1 enable scanning per-state \
 # Turn on the BMC
 mc_enable 0x20
 EMU
-
-test -f /etc/ipmi/lan.conf.rh7-osp-cl${NUM} || \
-cat <<LAN > /etc/ipmi/lan.conf.rh7-osp-cl${NUM}
+  
+  test -f /etc/ipmi/lan.conf.${CL_NAME}${NUM} || \
+cat <<LAN > /etc/ipmi/lan.conf.${CL_NAME}${NUM}
 # A configuration file for lanserv or ipmi_sim to configure the various
 #communication parameters for the device.
 
 # This is a name used to identify this instance, and used to create
 # the default name of the emulator startup command file and eventually # the storage facility for permanent storage.
-name "rh7-osp-cl${NUM}"
+name "${CL_NAME}${NUM}"
 
 #
 # Work on the BMC first
@@ -92,11 +96,9 @@ set_working_mc 0x20
   # startcmd is what to execute to start a VM associated with the
   # codec above (localhost 9002).  It also starts a console serial port
   # on port 9003 that is also used as the monitor interface
-  startcmd "qemu-system-x86_64 -machine accel=kvm -vnc :${NUM} -boot c -hda /var/lib/libvirt/images/rh7-osp-cl${NUM}.img -m 2048 -net nic,model=virtio,macaddr=52:54:00:00:00:0${NUM} -net tap,ifname=tap${NUM}_0,script=no -net nic,model=virtio,macaddr=52:54:00:00:00:1${NUM},vlan=3 -net tap,ifname=tap${NUM}_1,script=no,downscript=no,vlan=3 -net nic,model=virtio,macaddr=52:54:00:00:00:2${NUM},vlan=4 -net tap,ifname=tap${NUM}_2,script=no,downscript=no,vlan=4"
+  #startcmd "qemu-system-x86_64 -machine accel=kvm -vnc :${NUM} -boot c -hda /var/lib/libvirt/images/${CL_NAME}${NUM}.img -m 2048 -net nic,model=virtio,macaddr=52:54:00:00:00:0${NUM} -net tap,ifname=tap${NUM}_0,script=no -net nic,model=virtio,macaddr=52:54:00:00:00:1${NUM},vlan=3 -net tap,ifname=tap${NUM}_1,script=no,downscript=no,vlan=3 -net nic,model=virtio,macaddr=52:54:00:00:00:2${NUM},vlan=4 -net tap,ifname=tap${NUM}_2,script=no,downscript=no,vlan=4"
 
-  #startcmd "qemu-system-x86_64 -machine accel=kvm -vnc :${NUM} -boot c -hda /var/lib/libvirt/images/rh7-osp-cl${NUM}.img -m 2048 -net nic,model=virtio,macaddr=52:54:00:00:00:0${NUM} -net tap,ifname=tap${NUM}_0,script=no -net nic,model=virtio,macaddr=52:54:00:00:00:1${NUM} -net tap,ifname=tap${NUM}_1,script=no -net nic,model=virtio,macaddr=52:54:00:00:00:2${NUM} -net tap,ifname=tap${NUM}_2,script=no"
-
-  #startcmd "qemu-system-x86_64 -machine accel=kvm -vnc :${NUM} -boot c -hda /var/lib/libvirt/images/rh7-osp-cl${NUM}.img -m 2048 -net nic,model=virtio,macaddr=52:54:00:00:00:0${NUM} -net tap,ifname=tap${NUM}_0,script=no -net nic,model=virtio,macaddr=52:54:00:00:00:1${NUM} -net tap,ifname=tap${NUM}_1,script=no -net nic,model=virtio,macaddr=52:54:00:00:00:2${NUM} -net tap,ifname=tap${NUM}_2,script=no -chardev socket,id=monitor,path=/tmp/rh7-osp-cl${NUM}.monitor.sock,server,nowait -monitor chardev:monitor -chardev socket,id=serial0,path=/tmp/rh7-osp-cl${NUM}.console.sock,server,nowait -serial chardev:serial0"
+  startcmd "qemu-system-x86_64 -machine accel=kvm -vnc :${NUM} -boot menu=on -hda /var/lib/libvirt/images/${CL_NAME}${NUM}.img -cdrom /var/lib/libvirt/images/rhel-server-7.1-x86_64-dvd.iso -m 2048 -net nic,model=virtio,macaddr=52:54:00:00:00:0${NUM} -net tap,ifname=tap${NUM}_0,script=no -net nic,model=virtio,macaddr=52:54:00:00:00:1${NUM},vlan=3 -net tap,ifname=tap${NUM}_1,script=no,downscript=no,vlan=3 -net nic,model=virtio,macaddr=52:54:00:00:00:2${NUM},vlan=4 -net tap,ifname=tap${NUM}_2,script=no,downscript=no,vlan=4"
 
   # Start startcmd at startup?  Default is false.
   startnow true
@@ -124,11 +126,11 @@ set_working_mc 0x20
 
  # sol "/dev/ttyS0" 115200 history=4000 historyfru=10
 LAN
-
-if false;then
-
-test -f ./rh7-osp-cl${NUM}.xml || \
-cat <<XML > ./rh7-osp-cl${NUM}.xml
+  
+  if false;then
+    
+    test -f ./${CL_NAME}${NUM}.xml || \
+cat <<XML > ./${CL_NAME}${NUM}.xml
 <!--
 WARNING: THIS IS AN AUTO-GENERATED FILE. CHANGES TO IT ARE LIKELY TO BE
 OVERWRITTEN AND LOST. Changes to this xml configuration should be made using:
@@ -239,9 +241,9 @@ or other application using the libvirt API.
   </devices>
 </domain>
 XML
-
-fi
-
+    
+  fi
+  
 done
 
 DEV=eth0
@@ -255,26 +257,26 @@ pkill -9 -x ipmi_sim
 
 sleep 10
 
-ifconfig ${DEV}:1 10.0.2.211
-ifconfig ${DEV}:2 10.0.2.212
-ifconfig ${DEV}:3 10.0.2.213
-ifconfig ${DEV}:4 10.0.2.214
-ifconfig ${DEV}:5 10.0.2.215
+#for NUM in {1..5};do
+for NUM in {1..3};do
+  ifconfig ${DEV}:${NUM} 10.0.2.21${NUM}
+done
 
-for NUM in {1..5};do
-ip tuntap del dev tap${NUM}_0 mode tap vnet_hdr
-ip tuntap del dev tap${NUM}_1 mode tap vnet_hdr
-ip tuntap del dev tap${NUM}_2 mode tap vnet_hdr
-ip tuntap add dev tap${NUM}_0 mode tap vnet_hdr
-ip tuntap add dev tap${NUM}_1 mode tap vnet_hdr
-ip tuntap add dev tap${NUM}_2 mode tap vnet_hdr
-ip link set tap${NUM}_0 up
-ip link set tap${NUM}_1 up
-ip link set tap${NUM}_2 up
-sleep 0.5s
-/usr/bin/sudo /usr/sbin/brctl addif br0 tap${NUM}_0
-/usr/bin/sudo /usr/sbin/brctl addif br1 tap${NUM}_1
-/usr/bin/sudo /usr/sbin/brctl addif br2 tap${NUM}_2
+#for NUM in {1..5};do
+for NUM in {1..3};do
+  ip tuntap del dev tap${NUM}_0 mode tap vnet_hdr
+  ip tuntap del dev tap${NUM}_1 mode tap vnet_hdr
+  ip tuntap del dev tap${NUM}_2 mode tap vnet_hdr
+  ip tuntap add dev tap${NUM}_0 mode tap vnet_hdr
+  ip tuntap add dev tap${NUM}_1 mode tap vnet_hdr
+  ip tuntap add dev tap${NUM}_2 mode tap vnet_hdr
+  ip link set tap${NUM}_0 up
+  ip link set tap${NUM}_1 up
+  ip link set tap${NUM}_2 up
+  sleep 0.5s
+  /usr/bin/sudo /usr/sbin/brctl addif br0 tap${NUM}_0
+  /usr/bin/sudo /usr/sbin/brctl addif br1 tap${NUM}_1
+  /usr/bin/sudo /usr/sbin/brctl addif br2 tap${NUM}_2
 done
 ip tuntap
 brctl show
@@ -283,23 +285,19 @@ brctl show
 
 route -n
 
-#pgrep -fl rh7-osp-cl1 || xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl1 &
-#pgrep -fl rh7-osp-cl2 || xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl2 &
-#pgrep -fl rh7-osp-cl3 || xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl3 &
-#pgrep -fl rh7-osp-cl4 || xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl4 &
-#pgrep -fl rh7-osp-cl5 || xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl5 &
+if false;then
+  #for NUM in {1..5};do
+  for NUM in {1..3};do
+    pgrep -fl ${CL_NAME}${NUM} || xterm -e ipmi_sim -c /etc/ipmi/lan.conf.${CL_NAME}${NUM} &
+  done
+fi
 
 sleep 5
-#read
-pgrep -fl rh7-osp-cl1 ; xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl1 &
-#read
-pgrep -fl rh7-osp-cl2 ; xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl2 &
-#read
-pgrep -fl rh7-osp-cl3 ; xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl3 &
-#read
-pgrep -fl rh7-osp-cl4 ; xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl4 &
-#read
-pgrep -fl rh7-osp-cl5 ; xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl5 &
+
+#for NUM in {1..5};do
+for NUM in {1..3};do
+  pgrep -fl ${CL_NAME}${NUM} ; xterm -e ipmi_sim -c /etc/ipmi/lan.conf.${CL_NAME}${NUM} &
+done
 
 route -n
 
@@ -312,15 +310,15 @@ sleep 2.5
 #fi
 
 netstat -tlnp| grep 9002
-ipmitool -I lanplus -H 10.0.2.211 -U admin -P password power status
-ipmitool -I lanplus -H 10.0.2.212 -U admin -P password power status
-ipmitool -I lanplus -H 10.0.2.213 -U admin -P password power status
-ipmitool -I lanplus -H 10.0.2.214 -U admin -P password power status
-ipmitool -I lanplus -H 10.0.2.215 -U admin -P password power status
-sleep 2
-vncviewer :1 &
-vncviewer :2 &
-vncviewer :3 &
-vncviewer :4 &
-vncviewer :5 &
 
+#for NUM in {1..5};do
+for NUM in {1..3};do
+  ipmitool -I lanplus -H 10.0.2.21${NUM} -U admin -P password power status
+done
+
+sleep 2
+
+#for NUM in {1..5};do
+for NUM in {1..3};do
+  vncviewer :${NUM} &
+done
