@@ -1,0 +1,326 @@
+#!/bin/bash -x
+
+[ ${UID} -eq 0 ] || exit 1
+
+for NUM in {1..5};do 
+
+test -f /var/lib/libvirt/images/rh7-osp-cl${NUM}.img || qemu-img create -f qcow2 /var/lib/libvirt/images/rh7-osp-cl${NUM}.img 40G
+
+test -f /etc/ipmi/rh7-osp-cl${NUM}.emu || \
+cat <<EMU > /etc/ipmi/rh7-osp-cl${NUM}.emu
+# This is an example simulation setup for ipmi_sim.  It creates a single
+# management controller as a BMC.  That will have the standard watchdog
+# sensor and we add a temperature sensor.
+
+# The BMC is the MC at address 20
+mc_setbmc 0x20
+
+# Now add the BMC
+mc_add 0x20 0 no-device-sdrs 0x23 9 8 0x9f 0x1291 0xf02 persist_sdr
+sel_enable 0x20 1000 0x0a
+
+# Add a temperature sensor and its SDR.  Note that sensor 0 is already
+# taken as the watchdog sensor.
+sensor_add 0x20 0 1 0x01 0x01
+#main_sdr_add 0x20 \
+#            00 00 51 01 31 \
+#            20 00 01 03 01 67 88 01 01 c0 0f c0 7f 38 38 00 \
+#            01 00 00 01 00 00 00 00 00 03 60 b0 00 b0 00 a0 \
+#            90 70 00 00 00 00 00 00 00 00 c6 'D 'J 't 'e 'm \
+#            'p
+# Start with the value set to 0x60
+sensor_set_value 0x20 0 1 0x60 0
+# Set just the upper thresholds with the values 0x70, 0x90, and 0xa0
+sensor_set_threshold 0x20 0 1 settable 111000 0xa0 0x90 0x70 00 00 00
+# Enable all upper threshold events events
+sensor_set_event_support 0x20 0 1 enable scanning per-state \
+        000111111000000 000111111000000 \
+        000111111000000 000111111000000
+
+# Turn on the BMC
+mc_enable 0x20
+EMU
+
+test -f /etc/ipmi/lan.conf.rh7-osp-cl${NUM} || \
+cat <<LAN > /etc/ipmi/lan.conf.rh7-osp-cl${NUM}
+# A configuration file for lanserv or ipmi_sim to configure the various
+#communication parameters for the device.
+
+# This is a name used to identify this instance, and used to create
+# the default name of the emulator startup command file and eventually # the storage facility for permanent storage.
+name "rh7-osp-cl${NUM}"
+
+#
+# Work on the BMC first
+set_working_mc 0x20
+
+  # Define a LAN channel on channel 1
+  startlan 1
+    # Define an IP address and port to listen on.  You can define more
+    # than one address/port to listen on multiple addresses.  The ::
+    # listens on all addresses.
+    addr 10.0.2.21${NUM} 623
+
+    # Maximum privilege limit on the channel.
+    priv_limit admin
+
+    # Allowed IPMI 1.5 authorization types
+  #  allowed_auths_callback none md2 md5 straight
+  #  allowed_auths_user none md2 md5 straight
+  #  allowed_auths_operator none md2 md5 straight
+  #  allowed_auths_admin none md2 md5 straight
+
+   # guid for IPMI 2.0 authorization  You can also use a string
+    guid a123456789abcdefa123456789abcdef
+    #guid "I_AM_A_REAL_BMC!"
+
+    # You can specify a BMC key for IPMI 2.0 authorization.  See the
+    # spec for details.
+    #bmc_key "abcdefghijklmnopqrst"
+
+    # A program to get and set the LAN configuration of the interface.
+    #lan_config_program "/usr/local/bin/ipmi_sim_lancontrol eth0"
+    lan_config_program "./ipmi_sim_lancontrol eth0"
+  endlan
+
+  #chassis_control "./ipmi_sim_chassiscontrol 0x20"
+
+  # Define a serial VM inteface for channel 15 (the system interface) on
+  # port 9002, just available to the local system (localhost).
+  serial 15 10.0.2.21${NUM} 9002 codec VM ipmb 0x20
+
+  # startcmd is what to execute to start a VM associated with the
+  # codec above (localhost 9002).  It also starts a console serial port
+  # on port 9003 that is also used as the monitor interface
+  startcmd "qemu-system-x86_64 -machine accel=kvm -vnc :${NUM} -boot c -hda /var/lib/libvirt/images/rh7-osp-cl${NUM}.img -m 2048 -net nic,model=virtio,macaddr=52:54:00:00:00:0${NUM} -net tap,ifname=tap${NUM}_0,script=no -net nic,model=virtio,macaddr=52:54:00:00:00:1${NUM},vlan=3 -net tap,ifname=tap${NUM}_1,script=no,downscript=no,vlan=3 -net nic,model=virtio,macaddr=52:54:00:00:00:2${NUM},vlan=4 -net tap,ifname=tap${NUM}_2,script=no,downscript=no,vlan=4"
+
+  #startcmd "qemu-system-x86_64 -machine accel=kvm -vnc :${NUM} -boot c -hda /var/lib/libvirt/images/rh7-osp-cl${NUM}.img -m 2048 -net nic,model=virtio,macaddr=52:54:00:00:00:0${NUM} -net tap,ifname=tap${NUM}_0,script=no -net nic,model=virtio,macaddr=52:54:00:00:00:1${NUM} -net tap,ifname=tap${NUM}_1,script=no -net nic,model=virtio,macaddr=52:54:00:00:00:2${NUM} -net tap,ifname=tap${NUM}_2,script=no"
+
+  #startcmd "qemu-system-x86_64 -machine accel=kvm -vnc :${NUM} -boot c -hda /var/lib/libvirt/images/rh7-osp-cl${NUM}.img -m 2048 -net nic,model=virtio,macaddr=52:54:00:00:00:0${NUM} -net tap,ifname=tap${NUM}_0,script=no -net nic,model=virtio,macaddr=52:54:00:00:00:1${NUM} -net tap,ifname=tap${NUM}_1,script=no -net nic,model=virtio,macaddr=52:54:00:00:00:2${NUM} -net tap,ifname=tap${NUM}_2,script=no -chardev socket,id=monitor,path=/tmp/rh7-osp-cl${NUM}.monitor.sock,server,nowait -monitor chardev:monitor -chardev socket,id=serial0,path=/tmp/rh7-osp-cl${NUM}.console.sock,server,nowait -serial chardev:serial0"
+
+  # Start startcmd at startup?  Default is false.
+  startnow true
+
+  # The amount of time to wait for the startcmd to do a graceful shutdown
+  # on a powerdown request.  The simulator will send a request to the
+  # target, wait this amount of time, and then do a SIGTERM kill on the
+  # process.  If this is zero, a SIGTERM will not be done (nor will a SIGKILL).
+  # Note that if the simulator does not have a connection to the VM, the
+  # graceful shutdown is skipped and a SIGTERM is done immediately.
+  # Default time is 60 seconds.
+  #poweroff_wait 30
+
+  # The amount of time to wait for SIGTERM to kill the process.  If the process
+  # does not terminate in this period of time, send a SIGKILL kill.  If this
+  # is zero, don't send the SIGKILL.  Default time is 20 seconds.
+  #kill_wait 5
+
+  # Now add some users.  User 0 is invalid, user 1 is the special "anonymous"
+  # user and cannot take a username.  Note that the users here are only
+  # used if the persistent user config doesn't exist.
+  #    # valid name    passw      priv-lim max-sess allowed-auths
+  user 1 true  ""      "test"     user     10       none md2 md5 straight
+  user 2 true  "admin" "password" admin    10       none md2 md5 straight
+
+ # sol "/dev/ttyS0" 115200 history=4000 historyfru=10
+LAN
+
+if false;then
+
+test -f ./rh7-osp-cl${NUM}.xml || \
+cat <<XML > ./rh7-osp-cl${NUM}.xml
+<!--
+WARNING: THIS IS AN AUTO-GENERATED FILE. CHANGES TO IT ARE LIKELY TO BE
+OVERWRITTEN AND LOST. Changes to this xml configuration should be made using:
+  virsh edit RH7-DVY
+or other application using the libvirt API.
+-->
+
+<domain type='kvm'>
+  <name>RH7-OSP-CLI${NUM}</name>
+  <uuid>d69ecf93-544f-4352-8da6-62c151f6e28f</uuid>
+  <memory unit='KiB'>8388608</memory>
+  <currentMemory unit='KiB'>4194304</currentMemory>
+  <vcpu placement='static'>8</vcpu>
+  <os>
+    <type arch='x86_64' machine='pc-i440fx-2.3'>hvm</type>
+    <boot dev='network'/>
+  </os>
+  <features>
+    <acpi/>
+    <apic/>
+    <pae/>
+  </features>
+  <cpu mode='host-model'>
+    <model fallback='allow'/>
+  </cpu>
+  <clock offset='utc'>
+    <timer name='rtc' tickpolicy='catchup'/>
+    <timer name='pit' tickpolicy='delay'/>
+    <timer name='hpet' present='no'/>
+  </clock>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>restart</on_crash>
+  <pm>
+    <suspend-to-mem enabled='no'/>
+    <suspend-to-disk enabled='no'/>
+  </pm>
+  <devices>
+    <emulator>/usr/bin/qemu-kvm</emulator>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2' cache='writeback'/>
+      <source file='/var/lib/libvirt/images/RH7-OSP-CLI${NUM}.img'/>
+      <target dev='sda' bus='scsi'/>
+      <address type='drive' controller='0' bus='0' target='0' unit='0'/>
+    </disk>
+    <controller type='scsi' index='0' model='virtio-scsi'>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x06' function='0x0'/>
+    </controller>
+    <controller type='usb' index='0' model='ich9-ehci1'>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x08' function='0x7'/>
+    </controller>
+    <controller type='usb' index='0' model='ich9-uhci1'>
+      <master startport='0'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x08' function='0x0' multifunction='on'/>
+    </controller>
+    <controller type='usb' index='0' model='ich9-uhci2'>
+      <master startport='2'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x08' function='0x1'/>
+    </controller>
+    <controller type='usb' index='0' model='ich9-uhci3'>
+      <master startport='4'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x08' function='0x2'/>
+    </controller>
+    <controller type='pci' index='0' model='pci-root'/>
+    <controller type='virtio-serial' index='0'>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x07' function='0x0'/>
+    </controller>
+    <interface type='bridge'>
+      <mac address='52:54:00:00:00:0${NUM}'/>
+      <source bridge='br0'/>
+      <model type='virtio'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x03' function='0x0'/>
+    </interface>
+    <interface type='bridge'>
+      <mac address='52:54:00:00:00:1${NUM}'/>
+      <source bridge='br1'/>
+      <model type='virtio'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x04' function='0x0'/>
+    </interface>
+    <interface type='bridge'>
+      <mac address='52:54:00:00:00:2${NUM}'/>
+      <source bridge='br2'/>
+      <model type='virtio'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x05' function='0x0'/>
+    </interface>
+    <serial type='pty'>
+      <target port='0'/>
+    </serial>
+    <console type='pty'>
+      <target type='serial' port='0'/>
+    </console>
+    <channel type='unix'>
+      <source mode='bind' path='/var/lib/libvirt/qemu/channel/target/RH7-OSP-CLI${NUM}.org.qemu.guest_agent.0'/>
+      <target type='virtio' name='org.qemu.guest_agent.0'/>
+      <address type='virtio-serial' controller='0' bus='0' port='1'/>
+    </channel>
+    <input type='tablet' bus='usb'/>
+    <input type='mouse' bus='ps2'/>
+    <input type='keyboard' bus='ps2'/>
+    <graphics type='vnc' port='-1' autoport='yes'/>
+    <video>
+      <model type='cirrus' vram='16384' heads='1'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x0'/>
+    </video>
+    <memballoon model='virtio'>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x09' function='0x0'/>
+    </memballoon>
+  </devices>
+</domain>
+XML
+
+fi
+
+done
+
+DEV=eth0
+DEV=wlp3s0
+DEV=br0
+
+pkill -9 -x qemu-system-x86_64
+pkill -9 -x vncviwer
+pkill -9 -x ipmi_sim
+#pkill -9 -x xterm
+
+sleep 10
+
+ifconfig ${DEV}:1 10.0.2.211
+ifconfig ${DEV}:2 10.0.2.212
+ifconfig ${DEV}:3 10.0.2.213
+ifconfig ${DEV}:4 10.0.2.214
+ifconfig ${DEV}:5 10.0.2.215
+
+for NUM in {1..5};do
+ip tuntap del dev tap${NUM}_0 mode tap vnet_hdr
+ip tuntap del dev tap${NUM}_1 mode tap vnet_hdr
+ip tuntap del dev tap${NUM}_2 mode tap vnet_hdr
+ip tuntap add dev tap${NUM}_0 mode tap vnet_hdr
+ip tuntap add dev tap${NUM}_1 mode tap vnet_hdr
+ip tuntap add dev tap${NUM}_2 mode tap vnet_hdr
+ip link set tap${NUM}_0 up
+ip link set tap${NUM}_1 up
+ip link set tap${NUM}_2 up
+sleep 0.5s
+/usr/bin/sudo /usr/sbin/brctl addif br0 tap${NUM}_0
+/usr/bin/sudo /usr/sbin/brctl addif br1 tap${NUM}_1
+/usr/bin/sudo /usr/sbin/brctl addif br2 tap${NUM}_2
+done
+ip tuntap
+brctl show
+
+#if false;then
+
+route -n
+
+#pgrep -fl rh7-osp-cl1 || xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl1 &
+#pgrep -fl rh7-osp-cl2 || xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl2 &
+#pgrep -fl rh7-osp-cl3 || xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl3 &
+#pgrep -fl rh7-osp-cl4 || xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl4 &
+#pgrep -fl rh7-osp-cl5 || xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl5 &
+
+sleep 5
+#read
+pgrep -fl rh7-osp-cl1 ; xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl1 &
+#read
+pgrep -fl rh7-osp-cl2 ; xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl2 &
+#read
+pgrep -fl rh7-osp-cl3 ; xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl3 &
+#read
+pgrep -fl rh7-osp-cl4 ; xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl4 &
+#read
+pgrep -fl rh7-osp-cl5 ; xterm -e ipmi_sim -c /etc/ipmi/lan.conf.rh7-osp-cl5 &
+
+route -n
+
+nmcli -f bridge con show bridge-br0
+nmcli -f bridge con show bridge-br1
+nmcli -f bridge con show bridge-br2
+ip nei
+sleep 2.5
+
+#fi
+
+netstat -tlnp| grep 9002
+ipmitool -I lanplus -H 10.0.2.211 -U admin -P password power status
+ipmitool -I lanplus -H 10.0.2.212 -U admin -P password power status
+ipmitool -I lanplus -H 10.0.2.213 -U admin -P password power status
+ipmitool -I lanplus -H 10.0.2.214 -U admin -P password power status
+ipmitool -I lanplus -H 10.0.2.215 -U admin -P password power status
+sleep 2
+vncviewer :1 &
+vncviewer :2 &
+vncviewer :3 &
+vncviewer :4 &
+vncviewer :5 &
+
